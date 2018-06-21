@@ -1,0 +1,1150 @@
+
+options {
+	STATIC = false;
+	LOOKAHEAD = 7;
+} 
+
+PARSER_BEGIN(DemoParser)
+
+package demo; 
+
+import java.util.List;
+import java.util.ArrayList;
+import java.lang.*;
+import java.util.LinkedList;
+import java.io.IOException;
+import java.util.Stack;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.io.FileWriter;
+
+/*
+Klasa przechowuj¹ca: zmienne,  wartoœci zmiennych, tablice,
+wartoœci tablic,atruktury funkcji,
+*/
+
+public class DemoParser {
+
+public static FileWriter plikWy = null;
+
+public static boolean ismain=true;
+
+public static LinkedList<String> variables
+       =new LinkedList<String>();
+
+public static LinkedList<Double> values
+       =new LinkedList<Double>();
+
+public static LinkedList<Function> functions
+       =new LinkedList<Function>();
+
+public static LinkedList<String> tables=new LinkedList<String>();
+
+public static LinkedList<Double[]> tables_values=
+              new LinkedList<Double[]>();
+              
+public static LinkedList<Integer> tables_size
+        =new LinkedList<Integer>();
+
+/*
+Funkcja tworz¹ca z listy Stringów i konkatenacjê
+*/
+
+public static String LinkedtoString(LinkedList<String> list){
+
+    String result="";
+    for(int i=0;i<list.size();i++){
+        result=result+list.get(i);
+    }
+    return result;
+}
+
+/*
+funkcja sprawdzaj¹ca czy istnieje ju¿
+tablica lub zmienna o podanej nazwie
+*/
+
+public static boolean isDuplicatedVariable(String item){
+      return (variables.contains(item)|| tables.contains(item));
+}
+
+/*
+Funkcja zwracaj¹ca referencjê do funkcji o podanej nazwie
+*/
+
+public static Function searchfun(String item){
+
+         Function ret=null;
+         
+         for(int i=0;i<functions.size();i++){
+             if(functions.get(i).name.equals(item)){
+             return functions.get(i);
+             }
+         } 
+         
+        return ret;     
+}
+
+/*
+Funkcja zwracaj¹ca indeks na liœcie wszystkich
+funkcji dla funkcji o podanej nazwie
+*/
+
+public static int searchfun2(String item){
+
+             int x=-1;
+             
+         for(int i=0;i<functions.size();i++){
+             if(functions.get(i).name.equals(item)){
+             x= i;
+             }
+         } 
+         
+         return x;
+}
+
+
+/*
+Funkcja aktualizuj¹ca wartoœæ zmiennej
+*/
+
+public static void actualize(String _variable,
+               double val, String funname){
+       int i;
+       Function myfun=new Function();
+       
+       if(variables.contains(_variable)){
+           i=variables.indexOf(_variable);
+           values.set(i,val);    
+       }else{
+          myfun=searchfun(funname);
+          i=myfun.localvariab.indexOf(_variable);
+          myfun.valuelocalvariab.set(i,val);
+       }
+}
+
+}
+
+/*
+klasa przechowuj¹ca strukturê funkcji
+*/
+
+class Function{
+
+    public String name;
+    LinkedList<String> inputvariab=new LinkedList<String>();
+    
+    LinkedList<Double> valuesinputvariab;
+    
+    LinkedList<String> localvariab=new LinkedList<String>();
+    
+    LinkedList<Double> valuelocalvariab
+           =new LinkedList<Double>();
+    
+    LinkedList<LinkedList<String>> statm
+           =new LinkedList<LinkedList<String>>();
+               
+    LinkedList<String> leftside=new LinkedList<String>();
+    
+    LinkedList<String> returnvalue= new LinkedList<String>();
+    
+}
+
+
+/*
+Klasa pomocnicza z zaimplementowanymi funkcjami do zmiany
+wyra¿enia algebraicznego z postaci infiksowej na postfiksow¹
+*/
+
+class InToPost {
+
+   private  Stack<String> theStack=new Stack<String>();
+   
+   private  LinkedList<String> input;
+   
+   private  LinkedList<String> output 
+             = new LinkedList<String>();
+   
+   public  void init(LinkedList<String> in){
+	   input=in;
+   }
+  
+   
+   public  LinkedList<String> doTrans() {
+   
+      for (int j = 0; j < input.size(); j++) {
+         String ch = input.get(j);
+         switch (ch) {
+            case "+": 
+            case "-":
+               gotOper(ch, 1); 
+               break; 
+            case "*": 
+            case "/":
+               gotOper(ch, 2); 
+               break; 
+            case "(": 
+               theStack.push(ch);
+               break;
+            case ")": 
+               gotParen(ch); 
+               break;
+            default: 
+               output.add(ch); 
+               break;
+         }
+      }
+      while (!theStack.isEmpty()) {
+         output.add(theStack.pop());
+      }
+      //System.out.println(output);
+      return output; 
+   }
+   public  void gotOper(String opThis, int prec1) {
+      while (!theStack.isEmpty()) {
+         String opTop = theStack.pop();
+         if (opTop == "(") {
+            theStack.push(opTop);
+            break;
+         } else {
+            int prec2;
+            if (opTop == "+" || opTop == "-")
+            prec2 = 1;
+            else
+            prec2 = 2;
+            if (prec2 < prec1) { 
+               theStack.push(opTop);
+               break;
+            } 
+            else output.add(opTop);
+         }
+      }
+      theStack.push(opThis);
+   }
+   public  void gotParen(String ch) { 
+      while (!theStack.isEmpty()) {
+         String chx = theStack.pop();
+         if (chx == "(") 
+         break; 
+         else output.add(chx); 
+      }
+   }
+  
+  
+}
+
+
+/*
+
+Pomocnicz klasa z funkcjami s³u¿¹cymi do liczenia
+wartoœci wyra¿eñ w postaci postfiksowej
+*/
+
+class Eval{
+
+public static double valvar(String _variable, String _funname,
+        LinkedList<Double> input){
+        
+       double ret=0.0;
+       
+       Function myfun;
+       
+       for(int i=0;i<DemoParser.variables.size();i++){
+           if(_variable.equals(DemoParser.variables.get(i))){
+           return DemoParser.values.get(i);
+           }
+       }
+       myfun=DemoParser.searchfun(_funname);
+       for(int i=0;i<myfun.inputvariab.size();i++){
+           if(_variable.equals(myfun.inputvariab.get(i))){
+           return input.get(i);
+           }
+       }
+       
+       for(int i=0;i<myfun.localvariab.size();i++){
+           if(_variable.equals(myfun.localvariab.get(i))){
+           return myfun.valuelocalvariab.get(i);
+           }
+       }
+       return ret;
+
+}
+
+/*
+Funkcja sprawdzaj¹ca czy podany ci¹g znaków jest double
+*/
+
+public static boolean isdouble(String item){
+	      
+	      String pattern = "^(-?)(0|([1-9][0-9]*))(\\.[0-9]+)?$";
+	
+	      Pattern r = Pattern.compile(pattern);
+
+	      // Now create matcher object.
+	      Matcher m = r.matcher(item);
+	      
+	     return m.matches();
+	}
+	
+	
+	public static double evalRPN(LinkedList<String>  item,
+	        String _funname, LinkedList<Double> input){
+			Stack<Double> myStack=new Stack<Double>();
+			String next;
+			String operators="*/-+";
+			double pom;
+			for(int i=0;i<item.size();i++){
+				next=item.get(i);
+				
+				if (!operators.contains(next)) { 
+				//push to stack if it is a number
+					if(isdouble(next)){
+					myStack.push(Double.valueOf(next));
+					}else{
+						myStack.push(valvar(next,_funname,input));
+					}
+				} else {
+					double a = myStack.pop();
+					double b = myStack.pop();
+					switch (next) {
+					case "+":
+						myStack.push(a + b);
+						break;
+					case "-":
+						myStack.push(b - a);
+						break;
+					case "*":
+						myStack.push(a * b);
+						break;
+					case "/":
+						myStack.push(b / a);
+						break;
+					}
+				
+				
+			}
+			
+			
+	}
+			return myStack.pop();
+}
+
+}
+
+/*Wyj¹tki*/
+
+class My_IndexOutOfBoundsException extends Throwable {
+	 
+}
+
+class My_DuplicateVariableException extends Throwable {
+	 
+}
+
+class My_NotApplicableException extends Throwable {
+	 
+}
+
+class My_NotDeclaredException extends Throwable {
+	 
+}
+
+
+
+
+PARSER_END(DemoParser)
+
+
+
+
+SKIP :
+{
+    " " | "\n" | "\r" | "\r\n" | "\t"
+}
+
+
+TOKEN:
+{  
+   < SPR : "spr" >|
+   <SPRA :"spra">|
+   <PRINT : "print">|
+   < MAIN : "main" >|
+   < IF : "if" >|
+   < BOOL: "bool">|
+   < FUN : "fun" > |
+   < NEW : "new"> |
+   < FOR :  "for" > |
+   < HEJ : "hej"> |
+   < ELSE: "else">|
+   < CIAG : "ciag"> |
+   < RETURN : "return" > |
+   < DOUBLE_PLUS: "++" >|
+   < PLUS : "+" > |
+   < MINUS : "-" > |
+   < TIMES : "*" > |
+   < AS : "as" > |
+   < DOUBLE: "double" >|
+   < DIVIDE : "/" > |
+   < OPEN_PAR : "(" > |
+   < CLOSE_PAR : ")" > |
+    < OPEN_BRACE : "{" > |
+   < CLOSE_BRACE : "}" > | 
+   < OPEN_SQUARE : "["> |
+   < CLOSE_SQUARE : "]">|
+   < NUMBER : (["0"-"9"])+ | (["0"-"9"])+ "." (["0"-"9"])+
+           | (["0"-"9"])+ "." | "." (["0"-"9"])+ > |
+   < VARIABLE : (["a"-"z", "A"-"Z"])+ > |
+   < ASSIGNMENT : "=" > |
+   < LESS_THAN : "<"> |
+   < GREATER_THAN : ">" > |
+   < LOGIC_EQUALITY : "==" > |
+   < LOGIC_INEQUALITY : "!=" > |
+   < LOGIC_AND : "&&" > |
+   < LOGIC_OR : "||" >  |
+   < COMMA : "," > |
+   < SEMICOLON: ";" >
+   
+}
+
+/*funkcja drukuj¹ca wartoœci zmiennych i tablic na konsole*/
+
+void print() throws NumberFormatException, IOException,
+ My_NotApplicableException, My_DuplicateVariableException,
+  My_NotDeclaredException :
+{
+Token t1;
+Token t2=new Token();
+double d=0;
+int i=0;
+int ind;
+int j;
+}
+{
+<PRINT> <OPEN_PAR> 
+
+t1=<VARIABLE>{plikWy.write("System.out.println("+t1.image);}
+(
+<OPEN_SQUARE> t2=<NUMBER> <CLOSE_SQUARE>
+{i++;}
+{plikWy.write("["+t2.image+"]");}
+)* {plikWy.write(");\r\n");}<CLOSE_PAR><SEMICOLON>
+{if(i==0){
+ind=variables.indexOf(t1.image);
+d=values.get(ind);
+}
+if(i>0){
+ind=tables.indexOf(t1.image);
+j=Integer.valueOf(t2.image);
+d=tables_values.get(ind)[j];
+}}
+{
+System.out.println(d);
+}
+}
+
+double eval_tab_el() throws NumberFormatException, IOException,
+ My_NotApplicableException, My_DuplicateVariableException,
+  My_NotDeclaredException :{
+  
+Token t1,t2;
+int ind,j;
+double d;
+}
+{
+t1=<VARIABLE><OPEN_SQUARE> t2=<NUMBER> <CLOSE_SQUARE>
+{plikWy.write(t1.image+"["+t2.image+"]");}
+
+{ind=tables.indexOf(t1.image);
+j=Integer.valueOf(t2.image);
+d=tables_values.get(ind)[j];
+return d;
+}
+}
+
+
+/*funkcja parsuj¹ca wyra¿enie logiczne
+i zwracaj¹ca jego wartoœæ*/
+
+boolean boolexp() throws NumberFormatException, IOException,
+ My_NotApplicableException, My_DuplicateVariableException,
+  My_NotDeclaredException :
+{
+double left;
+double right;
+double result;
+Token token;
+}
+{
+   <BOOL> left=Expression() (token=<LESS_THAN> 
+   {plikWy.write("<");} |
+   token=< GREATER_THAN> {plikWy.write(">");}|
+   token=< LOGIC_EQUALITY> {plikWy.write("==");}|
+   token=< LOGIC_INEQUALITY> {plikWy.write("!=");})
+    right=Expression()
+   {result=left-right;
+   if(result<0 && token.image=="<"){
+   //System.out.println("true");
+   return true;}
+   
+   if(result>0 && token.image==">"){
+   //System.out.println("true");
+   return true;}
+   
+   if(result==0 && token.image=="=="){
+   //System.out.println("true");
+   return true;}
+   if(result!=0 && token.image=="!="){
+  // System.out.println("true");
+   return true;}
+   }
+  { //System.out.println("false");
+  return false;}
+}
+
+/*G³ówna pêtla funkcji parsuj¹ca kolejne linie*/
+
+void Start() throws NumberFormatException, IOException,
+My_IndexOutOfBoundsException, My_DuplicateVariableException,
+My_NotApplicableException,My_NotDeclaredException :
+{
+//LinkedList<String> variables=new LinkedList<String>();
+//LinkedList<Double> values=new LinkedList<Double>();
+double d=0.0;
+double x=0.0;}
+{
+{
+ try {
+            
+            plikWy = new FileWriter("C:\\obiektowe\\MyProgram.java");
+            String tekst = "public class MyProgram{\r\n";
+            plikWy.write(tekst);
+        }catch(IOException e) {
+			
+			e.printStackTrace();
+		}finally {
+            if (plikWy != null) {
+               // plikWy.close();
+            }
+        } 
+}
+(
+ statement()
+)*
+
+{plikWy.write("\r\n}\r\n};");
+plikWy.close();}
+
+<EOF>
+}
+
+
+/*funkcja rozdzielaj¹ca kolejne typy instrukcji*/
+
+void statement() throws NumberFormatException, IOException,
+ My_IndexOutOfBoundsException, My_DuplicateVariableException,
+ My_NotApplicableException, My_NotDeclaredException: {
+     Token t;
+     double w;
+     }
+  {
+  mainstart()
+  |spra()
+  |assig()
+  |assig2()
+  |evalfunction()
+  |Expression()
+  |setvalue()
+  |Testmy()
+  |function()
+  |sprawdz()
+  |loop()
+  |boolexp()
+  |conditional()
+  |tab_assig()
+  |el_tab_assig()
+  |print()
+  }
+  
+/*funkcja obs³uguj¹ca pêtle*/
+  
+void loop() throws NumberFormatException, IOException,
+My_DuplicateVariableException,My_NotApplicableException,
+My_NotDeclaredException:{
+
+int loop_begin;
+
+int loop_end;
+
+Token token0;
+
+Token token;
+
+Token token2;
+
+LinkedList<String> list;
+
+LinkedList<String> leftside=new LinkedList<String>();
+
+LinkedList<LinkedList<String>> statm=
+   new LinkedList<LinkedList<String>>();
+int i;
+int j;
+String iterowanie;
+
+}
+{<FOR> <OPEN_PAR>  token0=<VARIABLE>
+        <ASSIGNMENT> token2=<NUMBER>
+
+{plikWy.write("\r\n for("+token0.image+
+"="+token2.image+";"+token0.image);}
+{ iterowanie=token0.image;
+  variables.add(iterowanie);
+  values.add(0.0);
+loop_begin=Integer.valueOf(token2.image);}
+
+ <SEMICOLON> <VARIABLE> <LESS_THAN>  token=<NUMBER>
+ 
+ {plikWy.write("<"+token.image+";"+token0.image+"++){\r\n");}
+ 
+ {loop_end=Integer.valueOf(token.image);}
+ 
+  <SEMICOLON> <VARIABLE> <DOUBLE_PLUS>  <CLOSE_PAR>
+  
+  <OPEN_BRACE> (token=<VARIABLE> <ASSIGNMENT>
+  
+   {plikWy.write(token.image+"=");} list=MathExpression()
+   
+  <SEMICOLON> {plikWy.write(";\r\n");}
+  
+    { leftside.add(token.image);
+           statm.add(list); }       )* <CLOSE_BRACE>
+           {plikWy.write("\r\n}\r\n");}
+   { //System.out.println(variables);
+     //System.out.println(values);
+   
+   for(i=loop_begin;i<loop_end;i++){
+      
+      actualize(iterowanie,Double.valueOf(i), "");
+      
+      for(j=0;j<statm.size();j++){
+      actualize(leftside.get(j),Eval.evalRPN(statm.get(j),"",
+              new LinkedList<Double>()),"");
+      }
+    }
+    }
+}
+
+/*funkcja obs³uguj¹ca wyra¿enia warunkowe*/
+
+void conditional() throws NumberFormatException, IOException,
+My_DuplicateVariableException, My_NotApplicableException,
+My_NotDeclaredException :
+{
+boolean cond;
+
+LinkedList<String> list;
+
+Token token;
+
+LinkedList<String> trueleftside=new LinkedList<String>();
+
+LinkedList<LinkedList<String>> truestatm=
+	new LinkedList<LinkedList<String>>();
+ 
+LinkedList<String> falseleftside=new LinkedList<String>();
+
+LinkedList<LinkedList<String>> falsestatm=
+	new LinkedList<LinkedList<String>>();
+	int j;
+
+}
+{
+<IF> <OPEN_PAR> {plikWy.write("\r\nif(");}
+ cond=boolexp() <CLOSE_PAR> {plikWy.write("){\r\n");}
+<OPEN_BRACE> (token=<VARIABLE> 
+<ASSIGNMENT>{plikWy.write(token.image+"=");}
+ list=MathExpression() <SEMICOLON>{plikWy.write(";\r\n");}
+    { trueleftside.add(token.image);
+           truestatm.add(list); }       )* <CLOSE_BRACE><ELSE>
+           {plikWy.write("}else{\r\n");}
+<OPEN_BRACE> (token=<VARIABLE> <ASSIGNMENT>
+{plikWy.write(token.image+"=");} list=MathExpression() <SEMICOLON>
+{plikWy.write(";\r\n");}
+    { falseleftside.add(token.image);
+           falsestatm.add(list); }       )* 
+ <CLOSE_BRACE>{plikWy.write("\r\n}\r\n");}
+
+{
+if(cond){
+for(j=0;j<truestatm.size();j++){
+      actualize(trueleftside.get(j),
+         Eval.evalRPN(truestatm.get(j),"",
+         new LinkedList<Double>()),"");
+      }
+}else{
+for(j=0;j<falsestatm.size();j++){
+      actualize(falseleftside.get(j),
+      Eval.evalRPN(falsestatm.get(j),"",
+       new LinkedList<Double>()),"");
+  }
+}
+}
+}
+
+
+
+ /*Funkcja s³u¿¹ca do testowania */
+ 
+void sprawdz() throws NumberFormatException,
+ IOException, My_DuplicateVariableException,
+My_NotApplicableException, My_NotDeclaredException :{
+Function myfun;
+}
+{
+<SPR>
+{
+//System.out.println("sprawdz");
+myfun=functions.get(0);
+System.out.println(myfun.name);
+
+System.out.println("input zmianne");
+
+for(int i=0;i<myfun.inputvariab.size();i++){
+System.out.println(myfun.inputvariab.get(i));
+}
+
+
+System.out.println("local zmianne");
+
+for(int i=0;i<myfun.localvariab.size();i++){
+System.out.println(myfun.localvariab.get(i));
+}
+
+System.out.println("local");
+
+for(int i=0;i<myfun.valuelocalvariab.size();i++){
+System.out.println(myfun.valuelocalvariab.get(i));
+}
+
+System.out.println("local zmianne");
+
+for(int i=0;i<myfun.statm.size();i++){
+System.out.println(myfun.statm.get(i));
+}
+
+
+
+}
+
+}
+
+/*funkcja inicjuj¹ca g³ówn¹ czêœæ programu */
+
+void mainstart() throws NumberFormatException, IOException,
+My_NotApplicableException, My_DuplicateVariableException,
+ My_NotDeclaredException :{
+}
+{
+<MAIN>
+{plikWy.write("public static void main(String[] args){\r\n");}
+
+}
+
+/*Funkcja zwracaj¹ca wartoœæ funkcji na argumentach*/
+
+double evalfunction()throws NumberFormatException, IOException,
+ My_NotApplicableException, My_DuplicateVariableException,
+  My_NotDeclaredException :
+{
+String funname;
+LinkedList<Double> inputvalues=new LinkedList<Double>();
+Function myfun=new Function();
+double d;
+int countp=0;
+}
+{
+ token=<VARIABLE> 
+    { funname=token.image;}
+    {plikWy.write("MyProgram."+funname+"(");}
+    <OPEN_PAR>
+    ( 
+    {if(countp>0){
+    plikWy.write(",");
+    }}{countp++;}
+    d=Expression()
+    //token=<NUMBER>
+    {inputvalues.add(d);
+    //inputvalues.add(Double.valueOf(token.image));
+    }
+     <COMMA>)*
+    <CLOSE_PAR> {plikWy.write(")");}
+   // {System.out.println(funname);}
+   // {System.out.println(inputvalues);}
+    {myfun=DemoParser.searchfun(funname);
+    if(inputvalues.size()!=myfun.inputvariab.size()  ){
+          throw new My_NotApplicableException();
+    }
+    for(int i=0;i<myfun.statm.size();i++){
+        actualize(myfun.leftside.get(i),
+        Eval.evalRPN(myfun.statm.get(i),funname,inputvalues),funname);
+    }
+     //System.out.println(Eval.evalRPN(myfun.returnvalue,funname, inputvalues));
+     return Eval.evalRPN(myfun.returnvalue,funname,inputvalues);
+     }
+
+}
+
+
+/*funkcja parsuj¹ca funkcje i zapisuje jej strukture*/
+
+void function() throws NumberFormatException, IOException,
+ My_DuplicateVariableException,
+My_NotApplicableException, My_NotDeclaredException :
+{ 
+  Function myfun=new Function();
+  Token token;
+  LinkedList<String> list;
+  int i=0;
+}
+{
+ <FUN> token=<VARIABLE> 
+ {plikWy.write("public static double "+token.image+"(");}
+    {   myfun.name=token.image;
+        ismain=false;}
+    <OPEN_PAR>
+    (<DOUBLE> token=<VARIABLE>
+    {if(i>0){plikWy.write(",");}
+    i++;
+    plikWy.write(" double "+token.image);}
+    {myfun.inputvariab.add(token.image);}
+     <COMMA>)*
+    <CLOSE_PAR>{plikWy.write("){\r\n");}
+    <OPEN_BRACE>
+    (funassig2(myfun))*
+    (token=<VARIABLE> <ASSIGNMENT>
+    {plikWy.write(token.image+"=");}
+     list=MathExpression()<SEMICOLON> {plikWy.write(";\r\n");}
+      {myfun.leftside.add(token.image);
+       myfun.statm.add(list);}
+    )*
+    <RETURN> {plikWy.write("return ");}
+    list=MathExpression()<SEMICOLON> {plikWy.write(";\r\n");}
+    {myfun.returnvalue=list;}
+    <CLOSE_BRACE> {plikWy.write("}\r\n");}
+    {functions.add(myfun);
+    ismain=true;}
+}
+
+/*funkcja deklaruj¹ca tablice i inicjalizuj¹ca j¹*/
+
+void tab_assig() throws NumberFormatException, IOException,
+My_DuplicateVariableException, My_NotApplicableException,
+My_NotDeclaredException :
+{
+Token t;
+Token t2;
+int dim;
+}
+{
+<DOUBLE><OPEN_SQUARE><CLOSE_SQUARE> t=<VARIABLE>
+ <ASSIGNMENT> <NEW> <DOUBLE><OPEN_SQUARE>
+  t2=<NUMBER><CLOSE_SQUARE><SEMICOLON>
+{plikWy.write("double[] "+t.image+"=new double["+t2.image+"];\r\n");}
+
+{if(isDuplicatedVariable(t.image)){
+     throw new My_DuplicateVariableException();
+  }
+tables.add(t.image);
+dim=Integer.valueOf(t2.image);
+tables_size.add(dim);
+tables_values.add(new Double[dim]);}
+}
+
+/*inicjalizacja elementu tablicy*/
+
+void el_tab_assig() throws NumberFormatException, IOException,
+ My_IndexOutOfBoundsException, My_NotApplicableException,
+  My_NotDeclaredException :
+{
+Token t,t2,t3;
+int ind;
+double val;
+int i;
+int size;
+}
+{
+ <AS> t=<VARIABLE><OPEN_SQUARE> 
+ t2=<NUMBER><CLOSE_SQUARE> <ASSIGNMENT>
+  t3=<NUMBER><SEMICOLON>
+ {plikWy.write(t.image+"["+t2.image+"]="+t3.image+";\r\n");}
+ {ind=Integer.valueOf(t2.image);
+  val=Double.valueOf(t3.image);
+  i=tables.indexOf(t.image);
+  size=tables_size.get(i);
+  if(ind>=size || ind <0){
+  throw new My_IndexOutOfBoundsException();
+  }
+  tables_values.get(i)[ind]=val;}  
+}
+
+/*funkcja s³uz¹ca do testowania tablic*/
+void spra() throws NumberFormatException, IOException,
+ My_NotDeclaredException:
+{
+int i;
+}
+{
+<SPRA>
+{for(i=0;i<8;i++){
+
+System.out.print(tables_values.get(0)[i]);
+}System.out.println();
+
+}
+}
+  
+/*deklaracja wraz z inicjalizacja zmiennej*/
+
+void assig() throws NumberFormatException, IOException,
+My_DuplicateVariableException, My_NotApplicableException,
+ My_NotDeclaredException : 
+{
+     Token t;
+     Double d;
+}
+  {
+  <DOUBLE> t=<VARIABLE> 
+  <ASSIGNMENT>{plikWy.write("double "+ t.image+"=");} 
+  d=Expression()<SEMICOLON>{plikWy.write(";\r\n");}
+  { 
+  if(isDuplicatedVariable(t.image)){
+     throw new My_DuplicateVariableException();
+  }
+  variables.add(t.image);
+  values.add(d);
+  }
+
+ }
+ 
+/*Deklaracja zmiennej*/
+
+void assig2() throws NumberFormatException,
+ IOException, My_DuplicateVariableException,
+My_NotApplicableException, My_NotDeclaredException : 
+{
+ Token t;
+ Double d;
+}
+{
+  <DOUBLE> t=<VARIABLE> <SEMICOLON>
+  {plikWy.write("double "+ t.image+";\r\n");}
+  { 
+  if(isDuplicatedVariable(t.image)){
+     throw new My_DuplicateVariableException();
+  } 
+  variables.add(t.image);
+  values.add(0.0);
+  }
+
+}
+
+/*deklaracja zmiennej lokalnej wewn¹trz funkcji*/
+
+void funassig2(Function item) throws NumberFormatException,
+ IOException, My_DuplicateVariableException,
+My_NotApplicableException, My_NotDeclaredException : 
+{
+ Token t;
+ Double d;
+}
+{
+  <DOUBLE> t=<VARIABLE> <SEMICOLON>
+  {plikWy.write("double "+t.image+";\r\n");}
+  { 
+  item.localvariab.add(t.image);
+  item.valuelocalvariab.add(0.0);
+  }
+
+}
+
+/*Przypisanie wartoœci do zmiennej*/
+
+void setvalue() throws NumberFormatException, IOException,
+My_DuplicateVariableException, My_NotApplicableException,
+My_NotDeclaredException : 
+{
+     Token t;
+     Double d;
+     int i;
+}
+  {
+  <AS> t=<VARIABLE> {if(!variables.contains(t.image)){
+  throw new My_NotDeclaredException();
+  }}<ASSIGNMENT>{plikWy.write(t.image+"=");} d=Expression()<SEMICOLON>
+  
+  {plikWy.write(";\r\n");}
+  { 
+  i=variables.indexOf(t.image);
+  values.set(i,d);
+  }
+
+ 
+ }
+
+
+/*odczyt wartoœci ze zmiennej, wartoœci
+ funkcji na elementach i elementu tablicy*/
+ 
+double Primary() throws NumberFormatException, IOException,
+My_DuplicateVariableException, My_NotApplicableException,
+ My_NotDeclaredException :
+{
+
+	Token token;
+	double d;
+	int i;
+}
+{
+	token = <NUMBER>{plikWy.write(token.image);}
+	{return Double.parseDouble(token.image);}
+	|d=eval_tab_el()
+	{return d;}
+	|
+	<OPEN_PAR> {plikWy.write("(");} d = Expression()
+	 <CLOSE_PAR> {plikWy.write(")");}
+	 
+	{return d;}
+	
+	|d=evalfunction()
+	
+	{return d;}
+	
+	|token = <VARIABLE>{plikWy.write(token.image);}
+	
+	{i=variables.indexOf(token.image);
+	
+	return values.get(i);}
+	
+}
+
+
+
+
+
+
+
+
+
+/*Funkcja obs³uguj¹ca wyra¿enia algebraiczne*/
+
+double Expression() throws NumberFormatException, IOException,
+My_DuplicateVariableException,My_NotApplicableException,
+ My_NotDeclaredException :
+{
+	double i;
+	double value;
+}
+{
+	value = Term( )
+	(
+	<PLUS>{plikWy.write("+");}
+	i = Term()
+	{value += i;}
+	
+	|
+	
+	<MINUS>{plikWy.write("-");}
+	i=Term()
+	{value -= i;}
+	)*
+	{//System.out.println(value);
+	return value;}
+}
+
+
+void Testmy() throws NumberFormatException, IOException,
+My_NotDeclaredException :
+{
+
+}
+{
+<HEJ>
+{Myclass.hej();}
+
+}
+
+
+
+/*Funkcja obs³uguj¹ca wyra¿enia algebraiczne*/
+
+LinkedList<String> MathExpression() throws NumberFormatException,
+ IOException, My_DuplicateVariableException,
+My_NotApplicableException, My_NotDeclaredException :
+{
+Token token;
+
+LinkedList<String> wyr=new LinkedList<String>();
+
+LinkedList<String> tranwyr=new LinkedList<String>();
+
+InToPost into=new InToPost();
+}
+{
+//<CIAG> 
+(token=<VARIABLE>
+{wyr.add(token.image);}
+|
+token=<NUMBER>
+{wyr.add(token.image);}
+|
+token=<PLUS>
+{wyr.add(token.image);}
+|
+token=<MINUS>
+{wyr.add(token.image);}
+|
+token=< TIMES > 
+{wyr.add(token.image);}
+|
+token=< DIVIDE >
+{wyr.add(token.image);}
+|
+token=<OPEN_PAR>
+{wyr.add(token.image);}
+|
+token=<CLOSE_PAR>
+{wyr.add(token.image);}
+)*
+{ plikWy.write(LinkedtoString(wyr));
+into.init(wyr);
+  tranwyr=into.doTrans();
+ //System.out.println(wyr);
+ //System.out.println(tranwyr);
+ return tranwyr;}
+}
+
+double Term() throws NumberFormatException, IOException,
+My_DuplicateVariableException,My_NotApplicableException,
+My_NotDeclaredException :
+{
+ 	double i;
+ 	double value;
+}
+{
+	value = Primary( )
+	(
+	<TIMES>{plikWy.write("*");}
+	i = Primary()
+	{value *= i;}
+	|
+	<DIVIDE>{plikWy.write("\\");}
+	i = Primary()
+	{value /= i;}
+	)*
+	{return value;}
+}
+
+
+
+ 
+ 

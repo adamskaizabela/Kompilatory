@@ -1,0 +1,16 @@
+fun mag(double x, double y,){
+double s;
+    s=x+y+1;
+return  s-1;
+}
+
+main
+
+double z;
+double w;
+
+as z=mag(2,3,);
+as w=mag(mag(1,2,)+3,4,);
+
+print(z);
+print(w);
